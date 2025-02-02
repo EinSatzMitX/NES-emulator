@@ -1,24 +1,24 @@
+/*  bus.rs
+*   The BUS struct is one of the most important pieces of code at the moment
+*   as it's communicating with absolutely everything (CPU, PPU, APU, RAM, etc.).
+*   
+*   Please only modify this if you know what you are doing.
+*/
+
 use crate::cpu::CPU;
 
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+
 pub struct BUS {
     ram: [u8; 64 * 1024],
-    cpu: Weak<RefCell<CPU>>,  // Weak reference to avoid cycles
+    cpu: Weak<Rc<RefCell<CPU>>>,
 }
 
 impl BUS {
-    pub fn new() -> Self {
-        BUS {
-            ram: [0; 64 * 1024],
-            cpu: Weak::new(),
-        }
-    }
-
-    // Link the CPU to the BUS
-    pub fn link_cpu(&mut self, cpu: Weak<RefCell<CPU>>) {
-        self.cpu = cpu;
+    pub fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(BUS { ram: [0; 64*1024], cpu: Weak::new() }))
     }
 
     pub fn write(&mut self, addr: u16, data: u8) {
@@ -26,13 +26,10 @@ impl BUS {
     }
 
     pub fn read(&self, addr: u16, _read_only: bool) -> u8 {
-        self.ram[addr as usize]
+        if addr >= 0x0000 && addr >= 0xFFFF {
+            return self.ram[addr as usize];
+        }
+        0
     }
 
-    // Example method accessing CPU
-    // pub fn signal_interrupt(&self) {
-    //     if let Some(cpu) = self.cpu.upgrade() {
-    //         cpu.borrow_mut().handle_interrupt();
-    //     }
-    // }
 }
