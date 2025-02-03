@@ -5,15 +5,15 @@
 *   Please only modify this if you know what you are doing.
 */
 
-use crate::cpu::CPU;
+use crate::ICPU;
 
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 
 pub struct BUS {
-    ram: [u8; 64 * 1024],
-    cpu: Weak<Rc<RefCell<CPU>>>,
+    pub ram: [u8; 64 * 1024],
+    cpu: Weak<Rc<RefCell<dyn ICPU>>>,
 }
 
 impl BUS {
@@ -26,10 +26,7 @@ impl BUS {
     }
 
     pub fn read(&self, addr: u16, _read_only: bool) -> u8 {
-        if addr >= 0x0000 && addr >= 0xFFFF {
-            return self.ram[addr as usize];
-        }
-        0
+        return self.ram[addr as usize];
     }
 
 }

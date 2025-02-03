@@ -19,14 +19,14 @@
 
 use crate::bus::BUS;
 
+use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::io::Seek;
 use std::rc::{Rc, Weak};
 
 
 
-type OpcodeFunction = Box<dyn Fn(&mut dyn ICPU)>;
-type AddrmodeFunction = Box<dyn Fn(&mut dyn ICPU)>;
+type OpcodeFunction = Rc<Box<dyn Fn(&mut dyn ICPU)->u8>>;
+type AddrmodeFunction = Rc<Box<dyn Fn(&mut dyn ICPU)->u8>>;
 
 pub struct Instruction{
     pub name: String,
@@ -39,26 +39,26 @@ impl Instruction{
     pub fn new(
         name: impl Into<String>,
         cycles: u8,
-        opcode_fn: fn(&mut dyn ICPU),
+        opcode_fn: fn(&mut dyn ICPU) -> u8,
         addrmode_fn: fn(&mut dyn ICPU) -> u8,
     ) -> Self {
         Self {
             name: name.into(),
             cycles,
-            opcode_function: Box::new(move |cpu: &mut dyn ICPU| opcode_fn(cpu)),
-            addrmode_function: Box::new(move |cpu: &mut dyn ICPU| {addrmode_fn(cpu);}),
+            addrmode_function: Rc::new(Box::new(move |cpu: &mut dyn ICPU| {addrmode_fn(cpu)})),
+            opcode_function: Rc::new(Box::new(move |cpu: &mut dyn ICPU| {opcode_fn(cpu)})),
         }
     }
     pub fn new_empty() -> Self {
         Self {
             name: "XXX".to_string(),
             cycles: 2,
-            opcode_function: Box::new(|cpu: &mut dyn ICPU| {
-                cpu.ins_xxx();
-            }),
-            addrmode_function: Box::new(|cpu: &mut dyn ICPU| {
-                cpu.addrmode_imp();
-            }),
+            opcode_function: Rc::new(Box::new(|cpu: &mut dyn ICPU| {
+                cpu.ins_xxx()
+            })),
+            addrmode_function: Rc::new(Box::new(|cpu: &mut dyn ICPU| {
+                cpu.addrmode_imp()
+            })),
         }
     }
 }
@@ -106,6 +106,7 @@ pub trait ICPU {
     fn write(&mut self, addr: u16, data: u8);
     fn connect_bus(&mut self, bus: &Rc<Rc<RefCell<BUS>>>);
     fn set_flag(&mut self, status_flag: u8);
+    fn clear_flag(&mut self, status_flag: u8);
 
     fn fetch(&mut self) -> u8;
     fn clock(&mut self);
@@ -114,67 +115,67 @@ pub trait ICPU {
     fn nmi(&mut self);
 
     /* Opcode functions */
-    fn ins_adc(&mut self);
-    fn ins_and(&mut self);
-    fn ins_asl(&mut self);
-    fn ins_bcc(&mut self);
-    fn ins_bcs(&mut self);
-    fn ins_beq(&mut self);
-    fn ins_bit(&mut self);
-    fn ins_bmi(&mut self);
-    fn ins_bne(&mut self);
-    fn ins_bpl(&mut self);
-    fn ins_brk(&mut self);
-    fn ins_bvc(&mut self);
-    fn ins_bvs(&mut self);
-    fn ins_clc(&mut self);
-    fn ins_cld(&mut self);
-    fn ins_cli(&mut self);
-    fn ins_clv(&mut self);
-    fn ins_cmp(&mut self);
-    fn ins_cpx(&mut self);
-    fn ins_cpy(&mut self);
-    fn ins_dec(&mut self);
-    fn ins_dex(&mut self);
-    fn ins_dey(&mut self);
-    fn ins_eor(&mut self);
-    fn ins_inc(&mut self);
-    fn ins_inx(&mut self);
-    fn ins_iny(&mut self);
-    fn ins_jmp(&mut self);
-    fn ins_jsr(&mut self);
-    fn ins_lda(&mut self);
-    fn ins_ldx(&mut self);
-    fn ins_ldy(&mut self);
-    fn ins_lsr(&mut self);
-    fn ins_nop(&mut self);
-    fn ins_ora(&mut self);
-    fn ins_pha(&mut self);
-    fn ins_php(&mut self);
-    fn ins_pla(&mut self);
-    fn ins_plp(&mut self);
-    fn ins_rol(&mut self);
-    fn ins_ror(&mut self);
-    fn ins_rti(&mut self);
-    fn ins_rts(&mut self);
-    fn ins_sbc(&mut self);
-    fn ins_sec(&mut self);
-    fn ins_sed(&mut self);
-    fn ins_sei(&mut self);
-    fn ins_sta(&mut self);
-    fn ins_stx(&mut self);
-    fn ins_sty(&mut self);
-    fn ins_tax(&mut self);
-    fn ins_tay(&mut self);
-    fn ins_tsx(&mut self);
-    fn ins_txa(&mut self);
-    fn ins_txs(&mut self);
-    fn ins_tya(&mut self);
+    fn ins_adc(&mut self) -> u8;
+    fn ins_and(&mut self) -> u8;
+    fn ins_asl(&mut self) -> u8;
+    fn ins_bcc(&mut self) -> u8;
+    fn ins_bcs(&mut self) -> u8;
+    fn ins_beq(&mut self) -> u8;
+    fn ins_bit(&mut self) -> u8;
+    fn ins_bmi(&mut self) -> u8;
+    fn ins_bne(&mut self) -> u8;
+    fn ins_bpl(&mut self) -> u8;
+    fn ins_brk(&mut self) -> u8;
+    fn ins_bvc(&mut self) -> u8;
+    fn ins_bvs(&mut self) -> u8;
+    fn ins_clc(&mut self) -> u8;
+    fn ins_cld(&mut self) -> u8;
+    fn ins_cli(&mut self) -> u8;
+    fn ins_clv(&mut self) -> u8;
+    fn ins_cmp(&mut self) -> u8;
+    fn ins_cpx(&mut self) -> u8;
+    fn ins_cpy(&mut self) -> u8;
+    fn ins_dec(&mut self) -> u8;
+    fn ins_dex(&mut self) -> u8;
+    fn ins_dey(&mut self) -> u8;
+    fn ins_eor(&mut self) -> u8;
+    fn ins_inc(&mut self) -> u8;
+    fn ins_inx(&mut self) -> u8;
+    fn ins_iny(&mut self) -> u8;
+    fn ins_jmp(&mut self) -> u8;
+    fn ins_jsr(&mut self) -> u8;
+    fn ins_lda(&mut self) -> u8;
+    fn ins_ldx(&mut self) -> u8;
+    fn ins_ldy(&mut self) -> u8;
+    fn ins_lsr(&mut self) -> u8;
+    fn ins_nop(&mut self) -> u8;
+    fn ins_ora(&mut self) -> u8;
+    fn ins_pha(&mut self) -> u8;
+    fn ins_php(&mut self) -> u8;
+    fn ins_pla(&mut self) -> u8;
+    fn ins_plp(&mut self) -> u8;
+    fn ins_rol(&mut self) -> u8;
+    fn ins_ror(&mut self) -> u8;
+    fn ins_rti(&mut self) -> u8;
+    fn ins_rts(&mut self) -> u8;
+    fn ins_sbc(&mut self) -> u8;
+    fn ins_sec(&mut self) -> u8;
+    fn ins_sed(&mut self) -> u8;
+    fn ins_sei(&mut self) -> u8;
+    fn ins_sta(&mut self) -> u8;
+    fn ins_stx(&mut self) -> u8;
+    fn ins_sty(&mut self) -> u8;
+    fn ins_tax(&mut self) -> u8;
+    fn ins_tay(&mut self) -> u8;
+    fn ins_tsx(&mut self) -> u8;
+    fn ins_txa(&mut self) -> u8;
+    fn ins_txs(&mut self) -> u8;
+    fn ins_tya(&mut self) -> u8;
 
 
 
     // Illegal opcode
-    fn ins_xxx(&mut self);
+    fn ins_xxx(&mut self) -> u8;
 
     /* Addressing modes */
     fn addrmode_imp(&mut self) -> u8;
@@ -200,77 +201,77 @@ impl ICPU for CPU {
         /* Setting up The lookup table... I hate my life */
         /* Using This as my template: https://github.com/OneLoneCoder/olcNES/blob/master/Part%232%20-%20CPU/olc6502.cpp */
         /* 0x0n Opcodes */
-        lookup[0x00] = Instruction::new("BRK", 2, |cpu: &mut dyn ICPU| cpu.ins_brk(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x01] = Instruction::new("ORA", 6, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_izx());
-        lookup[0x02] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x03] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x04] = Instruction::new("???", 3, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x05] = Instruction::new("ORA", 3, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
-        lookup[0x06] = Instruction::new("ASL", 5, |cpu: &mut dyn ICPU| cpu.ins_asl(), |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
-        lookup[0x07] = Instruction::new("???", 5, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x08] = Instruction::new("PHP", 3, |cpu: &mut dyn ICPU| cpu.ins_php(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x09] = Instruction::new("ORA", 2, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_imm());
-        lookup[0x0A] = Instruction::new("ASL", 2, |cpu: &mut dyn ICPU| cpu.ins_asl(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x0B] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x0C] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x0D] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_abs());
-        lookup[0x0E] = Instruction::new("ASL", 6, |cpu: &mut dyn ICPU| cpu.ins_asl(), |cpu: &mut dyn ICPU| cpu.addrmode_abs());
-        lookup[0x0F] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x00] = Instruction::new("BRK", 2, |cpu: &mut dyn ICPU| {cpu.ins_brk()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x01] = Instruction::new("ORA", 6, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_izx());
+        lookup[0x02] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x03] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x04] = Instruction::new("???", 3, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x05] = Instruction::new("ORA", 3, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
+        lookup[0x06] = Instruction::new("ASL", 5, |cpu: &mut dyn ICPU| {cpu.ins_asl()}, |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
+        lookup[0x07] = Instruction::new("???", 5, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x08] = Instruction::new("PHP", 3, |cpu: &mut dyn ICPU| {cpu.ins_php()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x09] = Instruction::new("ORA", 2, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_imm());
+        lookup[0x0A] = Instruction::new("ASL", 2, |cpu: &mut dyn ICPU| {cpu.ins_asl()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x0B] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x0C] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x0D] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_abs());
+        lookup[0x0E] = Instruction::new("ASL", 6, |cpu: &mut dyn ICPU| {cpu.ins_asl()}, |cpu: &mut dyn ICPU| cpu.addrmode_abs());
+        lookup[0x0F] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
 
         /* 0x1n Opcodes */
-        lookup[0x10] = Instruction::new("BPL", 2, |cpu: &mut dyn ICPU| cpu.ins_bpl(), |cpu: &mut dyn ICPU| cpu.addrmode_rel());
-        lookup[0x11] = Instruction::new("ORA", 5, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_izy());
-        lookup[0x12] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x13] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x14] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x15] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
-        lookup[0x16] = Instruction::new("ASL", 6, |cpu: &mut dyn ICPU| cpu.ins_asl(), |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
-        lookup[0x17] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x18] = Instruction::new("CLC", 2, |cpu: &mut dyn ICPU| cpu.ins_clc(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x19] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_aby());
-        lookup[0x1A] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x1B] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x1C] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x1D] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| cpu.ins_ora(), |cpu: &mut dyn ICPU| cpu.addrmode_abx());
-        lookup[0x1E] = Instruction::new("ASL", 7, |cpu: &mut dyn ICPU| cpu.ins_asl(), |cpu: &mut dyn ICPU| cpu.addrmode_abx());
-        lookup[0x1F] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x10] = Instruction::new("BPL", 2, |cpu: &mut dyn ICPU| {cpu.ins_bpl()}, |cpu: &mut dyn ICPU| cpu.addrmode_rel());
+        lookup[0x11] = Instruction::new("ORA", 5, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_izy());
+        lookup[0x12] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x13] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x14] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x15] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
+        lookup[0x16] = Instruction::new("ASL", 6, |cpu: &mut dyn ICPU| {cpu.ins_asl()}, |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
+        lookup[0x17] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x18] = Instruction::new("CLC", 2, |cpu: &mut dyn ICPU| {cpu.ins_clc()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x19] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_aby());
+        lookup[0x1A] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x1B] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x1C] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x1D] = Instruction::new("ORA", 4, |cpu: &mut dyn ICPU| {cpu.ins_ora()}, |cpu: &mut dyn ICPU| cpu.addrmode_abx());
+        lookup[0x1E] = Instruction::new("ASL", 7, |cpu: &mut dyn ICPU| {cpu.ins_asl()}, |cpu: &mut dyn ICPU| cpu.addrmode_abx());
+        lookup[0x1F] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
 
         
         /* 0x2n Opcodes */
-        lookup[0x20] = Instruction::new("JSR", 6, |cpu: &mut dyn ICPU| cpu.ins_jsr(), |cpu: &mut dyn ICPU| cpu.addrmode_abs());
-        lookup[0x21] = Instruction::new("AND", 6, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_izx());
-        lookup[0x22] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x23] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x24] = Instruction::new("BIT", 3, |cpu: &mut dyn ICPU| cpu.ins_bit(), |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
-        lookup[0x25] = Instruction::new("AND", 3, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
-        lookup[0x26] = Instruction::new("ROL", 5, |cpu: &mut dyn ICPU| cpu.ins_rol(), |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
-        lookup[0x27] = Instruction::new("???", 5, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x28] = Instruction::new("PLP", 4, |cpu: &mut dyn ICPU| cpu.ins_plp(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x29] = Instruction::new("AND", 2, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_imm());
-        lookup[0x2A] = Instruction::new("ROL", 2, |cpu: &mut dyn ICPU| cpu.ins_rol(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x2B] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x2C] = Instruction::new("BIT", 4, |cpu: &mut dyn ICPU| cpu.ins_bit(), |cpu: &mut dyn ICPU| cpu.addrmode_abs());
-        lookup[0x2D] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_abs());
-        lookup[0x2E] = Instruction::new("ROL", 6, |cpu: &mut dyn ICPU| cpu.ins_rol(), |cpu: &mut dyn ICPU| cpu.addrmode_abs());
-        lookup[0x2F] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-
+        lookup[0x20] = Instruction::new("JSR", 6, |cpu: &mut dyn ICPU| {cpu.ins_jsr()}, |cpu: &mut dyn ICPU| cpu.addrmode_abs());
+        lookup[0x21] = Instruction::new("AND", 6, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_izx());
+        lookup[0x22] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x23] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x24] = Instruction::new("BIT", 3, |cpu: &mut dyn ICPU| {cpu.ins_bit()}, |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
+        lookup[0x25] = Instruction::new("AND", 3, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
+        lookup[0x26] = Instruction::new("ROL", 5, |cpu: &mut dyn ICPU| {cpu.ins_rol()}, |cpu: &mut dyn ICPU| cpu.addrmode_zp0());
+        lookup[0x27] = Instruction::new("???", 5, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x28] = Instruction::new("PLP", 4, |cpu: &mut dyn ICPU| {cpu.ins_plp()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x29] = Instruction::new("AND", 2, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_imm());
+        lookup[0x2A] = Instruction::new("ROL", 2, |cpu: &mut dyn ICPU| {cpu.ins_rol()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x2B] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x2C] = Instruction::new("BIT", 4, |cpu: &mut dyn ICPU| {cpu.ins_bit()}, |cpu: &mut dyn ICPU| cpu.addrmode_abs());
+        lookup[0x2D] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_abs());
+        lookup[0x2E] = Instruction::new("ROL", 6, |cpu: &mut dyn ICPU| {cpu.ins_rol()}, |cpu: &mut dyn ICPU| cpu.addrmode_abs());
+        lookup[0x2F] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+    
         /* 0x3n Opcodes */
-        lookup[0x30] = Instruction::new("BMI", 2, |cpu: &mut dyn ICPU| cpu.ins_bmi(), |cpu: &mut dyn ICPU| cpu.addrmode_rel());
-        lookup[0x31] = Instruction::new("AND", 5, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_izy());
-        lookup[0x32] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x33] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x34] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x35] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
-        lookup[0x36] = Instruction::new("ROL", 6, |cpu: &mut dyn ICPU| cpu.ins_rol(), |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
-        lookup[0x37] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x38] = Instruction::new("SEC", 2, |cpu: &mut dyn ICPU| cpu.ins_sec(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x39] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_aby());
-        lookup[0x3A] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x3B] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x3C] = Instruction::new("NOP", 4, |cpu: &mut dyn ICPU| cpu.ins_nop(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
-        lookup[0x3D] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| cpu.ins_and(), |cpu: &mut dyn ICPU| cpu.addrmode_abx());
-        lookup[0x3E] = Instruction::new("ROL", 7, |cpu: &mut dyn ICPU| cpu.ins_rol(), |cpu: &mut dyn ICPU| cpu.addrmode_abx());
-        lookup[0x3F] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| cpu.ins_xxx(), |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x30] = Instruction::new("BMI", 2, |cpu: &mut dyn ICPU| {cpu.ins_bmi()}, |cpu: &mut dyn ICPU| cpu.addrmode_rel());
+        lookup[0x31] = Instruction::new("AND", 5, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_izy());
+        lookup[0x32] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x33] = Instruction::new("???", 8, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x34] = Instruction::new("???", 4, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x35] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
+        lookup[0x36] = Instruction::new("ROL", 6, |cpu: &mut dyn ICPU| {cpu.ins_rol()}, |cpu: &mut dyn ICPU| cpu.addrmode_zpx());
+        lookup[0x37] = Instruction::new("???", 6, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x38] = Instruction::new("SEC", 2, |cpu: &mut dyn ICPU| {cpu.ins_sec()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x39] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_aby());
+        lookup[0x3A] = Instruction::new("???", 2, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x3B] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x3C] = Instruction::new("NOP", 4, |cpu: &mut dyn ICPU| {cpu.ins_nop()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
+        lookup[0x3D] = Instruction::new("AND", 4, |cpu: &mut dyn ICPU| {cpu.ins_and()}, |cpu: &mut dyn ICPU| cpu.addrmode_abx());
+        lookup[0x3E] = Instruction::new("ROL", 7, |cpu: &mut dyn ICPU| {cpu.ins_rol()}, |cpu: &mut dyn ICPU| cpu.addrmode_abx());
+        lookup[0x3F] = Instruction::new("???", 7, |cpu: &mut dyn ICPU| {cpu.ins_xxx()}, |cpu: &mut dyn ICPU| cpu.addrmode_imp());
 
 
         Rc::new(RefCell::new(CPU {
@@ -292,17 +293,17 @@ impl ICPU for CPU {
 
     fn read(&self, addr: u16) -> u8 {
         if let Some(bus) = self.bus.upgrade() {
-            return bus.borrow().read(addr, true);
+            return (**bus).borrow().read(addr, true);
         }
         0 // Default return if bus is not available
     }
-
     fn write(&mut self, addr: u16, data: u8) {
         if let Some(bus) = self.bus.upgrade() {
             bus.borrow_mut().write(addr, data);
         }
     }
 
+    /* This function is called to enter the BUS into the CPU struct */
     fn connect_bus(&mut self, bus: &Rc<Rc<RefCell<BUS>>>) { 
         self.bus = Rc::downgrade(bus); 
     }
@@ -310,15 +311,51 @@ impl ICPU for CPU {
     fn set_flag(&mut self, status_flag: u8){
         self.status_flags |= status_flag; 
     }
-    fn fetch(&mut self) -> u8{
-        todo!()
+    fn clear_flag(&mut self, status_flag: u8){
+        self.status_flags &= !status_flag;
     }
-    fn clock(&mut self){
+    fn fetch(&mut self) -> u8{
+        let addrmode_fn = self.lookup[self.opcode as usize].addrmode_function.clone();
+
+        if addrmode_fn(self) != 0 {
+            self.last_fetched = self.read(self.absolute_addr);
+        }
+        self.last_fetched
+    }
+    fn clock(&mut self) {
+        /* I just want to mention how incredibly grateful I am that AI exists, I have spent over an
+        * hour on this and ChatGPT just cooked it up in 5 mins */
         if self.cycles == 0 {
+            // Fetch the opcode from memory
             self.opcode = self.read(self.pc);
             self.pc += 1;
 
+            // Use a new block to limit the scope of the immutable borrow.
+            let (addrmode_fn, opcode_fn, cycles) = {
+                // Borrow the instruction immutably.
+                let instruction = &self.lookup[self.opcode as usize];
+                // Extract both functions via cloning the smart pointer, and save cycles.
+                (
+                    Rc::clone(&instruction.addrmode_function),
+                    Rc::clone(&instruction.opcode_function),
+                    instruction.cycles,
+                )
+            }; // The borrow of `instruction` ends here.
+
+            // Set the cycles for this instruction.
+            self.cycles = cycles;
+
+            // Call the addressing mode function first (if that's your desired order)
+            let additional_cycle1 = addrmode_fn(self);
+
+            // Now call the opcode function.
+            let additional_cycle2 = opcode_fn(self);
+
+            self.cycles += (additional_cycle1 as u8) & (additional_cycle2 as u8);
         }
+
+        self.cycles -= 1;
+
     }
     fn reset(&mut self){
         todo!()
@@ -331,104 +368,190 @@ impl ICPU for CPU {
     }
 
     /* Opcodes */
-    fn ins_adc(&mut self){todo!()}
-    fn ins_and(&mut self){todo!()}
-    fn ins_asl(&mut self){todo!()}
-    fn ins_bcc(&mut self){todo!()}
-    fn ins_bcs(&mut self){todo!()}
-    fn ins_beq(&mut self){todo!()}
-    fn ins_bit(&mut self){todo!()}
-    fn ins_bmi(&mut self){todo!()}
-    fn ins_bne(&mut self){todo!()}
-    fn ins_bpl(&mut self){todo!()}
-    fn ins_brk(&mut self){todo!()}
-    fn ins_bvc(&mut self){todo!()}
-    fn ins_bvs(&mut self){todo!()}
-    fn ins_clc(&mut self){todo!()}
-    fn ins_cld(&mut self){todo!()}
-    fn ins_cli(&mut self){todo!()}
-    fn ins_clv(&mut self){todo!()}
-    fn ins_cmp(&mut self){todo!()}
-    fn ins_cpx(&mut self){todo!()}
-    fn ins_cpy(&mut self){todo!()}
-    fn ins_dec(&mut self){todo!()}
-    fn ins_dex(&mut self){todo!()}
-    fn ins_dey(&mut self){todo!()}
-    fn ins_eor(&mut self){todo!()}
-    fn ins_inc(&mut self){todo!()}
-    fn ins_inx(&mut self){todo!()}
-    fn ins_iny(&mut self){todo!()}
-    fn ins_jmp(&mut self){todo!()}
-    fn ins_jsr(&mut self){todo!()}
-    fn ins_lda(&mut self){todo!()}
-    fn ins_ldx(&mut self){todo!()}
-    fn ins_ldy(&mut self){todo!()}
-    fn ins_lsr(&mut self){todo!()}
-    fn ins_nop(&mut self){todo!()}
-    fn ins_ora(&mut self){todo!()}
-    fn ins_pha(&mut self){todo!()}
-    fn ins_php(&mut self){todo!()}
-    fn ins_pla(&mut self){todo!()}
-    fn ins_plp(&mut self){todo!()}
-    fn ins_rol(&mut self){todo!()}
-    fn ins_ror(&mut self){todo!()}
-    fn ins_rti(&mut self){todo!()}
-    fn ins_rts(&mut self){todo!()}
-    fn ins_sbc(&mut self){todo!()}
-    fn ins_sec(&mut self){todo!()}
-    fn ins_sed(&mut self){todo!()}
-    fn ins_sei(&mut self){todo!()}
-    fn ins_sta(&mut self){todo!()}
-    fn ins_stx(&mut self){todo!()}
-    fn ins_sty(&mut self){todo!()}
-    fn ins_tax(&mut self){todo!()}
-    fn ins_tay(&mut self){todo!()}
-    fn ins_tsx(&mut self){todo!()}
-    fn ins_txa(&mut self){todo!()}
-    fn ins_txs(&mut self){todo!()}
-    fn ins_tya(&mut self){todo!()}
+    fn ins_adc(&mut self) -> u8{todo!()}
+    fn ins_and(&mut self) -> u8{todo!()}
+    fn ins_asl(&mut self) -> u8{todo!()}
+    fn ins_bcc(&mut self) -> u8{todo!()}
+    fn ins_bcs(&mut self) -> u8{todo!()}
+    fn ins_beq(&mut self) -> u8{todo!()}
+    fn ins_bit(&mut self) -> u8{todo!()}
+    fn ins_bmi(&mut self) -> u8{todo!()}
+    fn ins_bne(&mut self) -> u8{todo!()}
+    fn ins_bpl(&mut self) -> u8{todo!()}
+    fn ins_brk(&mut self) -> u8{todo!()}
+    fn ins_bvc(&mut self) -> u8{todo!()}
+    fn ins_bvs(&mut self) -> u8{todo!()}
+    fn ins_clc(&mut self) -> u8{todo!()}
+    fn ins_cld(&mut self) -> u8{todo!()}
+    fn ins_cli(&mut self) -> u8{todo!()}
+    fn ins_clv(&mut self) -> u8{todo!()}
+    fn ins_cmp(&mut self) -> u8{todo!()}
+    fn ins_cpx(&mut self) -> u8{todo!()}
+    fn ins_cpy(&mut self) -> u8{todo!()}
+    fn ins_dec(&mut self) -> u8{todo!()}
+    fn ins_dex(&mut self) -> u8{todo!()}
+    fn ins_dey(&mut self) -> u8{todo!()}
+    fn ins_eor(&mut self) -> u8{todo!()}
+    fn ins_inc(&mut self) -> u8{todo!()}
+    fn ins_inx(&mut self) -> u8{todo!()}
+    fn ins_iny(&mut self) -> u8{todo!()}
+    fn ins_jmp(&mut self) -> u8{todo!()}
+    fn ins_jsr(&mut self) -> u8{todo!()}
+    fn ins_lda(&mut self) -> u8{todo!()}
+    fn ins_ldx(&mut self) -> u8{todo!()}
+    fn ins_ldy(&mut self) -> u8{todo!()}
+    fn ins_lsr(&mut self) -> u8{todo!()}
+    fn ins_nop(&mut self) -> u8{todo!()}
+    fn ins_ora(&mut self) -> u8{todo!()}
+    fn ins_pha(&mut self) -> u8{todo!()}
+    fn ins_php(&mut self) -> u8{todo!()}
+    fn ins_pla(&mut self) -> u8{todo!()}
+    fn ins_plp(&mut self) -> u8{todo!()}
+    fn ins_rol(&mut self) -> u8{todo!()}
+    fn ins_ror(&mut self) -> u8{todo!()}
+    fn ins_rti(&mut self) -> u8{todo!()}
+    fn ins_rts(&mut self) -> u8{todo!()}
+    fn ins_sbc(&mut self) -> u8{todo!()}
+    fn ins_sec(&mut self) -> u8{todo!()}
+    fn ins_sed(&mut self) -> u8{todo!()}
+    fn ins_sei(&mut self) -> u8{todo!()}
+    fn ins_sta(&mut self) -> u8{todo!()}
+    fn ins_stx(&mut self) -> u8{todo!()}
+    fn ins_sty(&mut self) -> u8{todo!()}
+    fn ins_tax(&mut self) -> u8{todo!()}
+    fn ins_tay(&mut self) -> u8{todo!()}
+    fn ins_tsx(&mut self) -> u8{todo!()}
+    fn ins_txa(&mut self) -> u8{todo!()}
+    fn ins_txs(&mut self) -> u8{todo!()}
+    fn ins_tya(&mut self) -> u8{todo!()}
 
     // Illegal opcode
-    fn ins_xxx(&mut self){
+    fn ins_xxx(&mut self) -> u8{
         println!("Illegal opcode detected!");
+        0
     }
 
     /* Addressing modes */
+
+    /* Implied means there is no additional data, so we just return 0 */
     fn addrmode_imp(&mut self) -> u8 {
-        todo!()
+        self.last_fetched = self.a;
+        0
     }
     fn addrmode_zp0(&mut self) -> u8{
-        todo!()
+        self.absolute_addr = self.read(self.pc) as u16;
+        self.pc += 1;
+        self.absolute_addr &= 0x00ff;
+        0
     }
     fn addrmode_zpy(&mut self) -> u8{
-        todo!()
+        self.absolute_addr = self.read(self.pc) as u16 + self.y as u16;
+        self.pc += 1;
+        self.absolute_addr &= 0x00FF;
+        0
     }
     fn addrmode_abs(&mut self) -> u8 {
-        todo!()
+        let lo: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+        let hi: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+
+        self.absolute_addr = (hi << 8) | lo;
+        0
     }
     fn addrmode_aby(&mut self) -> u8 {
-        todo!()
+        let lo: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+        let hi: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+
+        self.absolute_addr = (hi << 8) | lo;
+        self.absolute_addr += self.y as u16;
+
+        if (self.absolute_addr & 0xFF00) != (hi << 8){
+            1
+        }else {
+            0
+        }
     }
     fn addrmode_izx(&mut self) -> u8 {
-        todo!()
+        let t: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+
+        let lo: u16 = self.read((t + self.x as u16) & 0x00FF) as u16;
+        let hi: u16 = self.read((t + self.x  as u16 + 1) & 0x00FF) as u16;
+
+        self.absolute_addr = (hi << 8) | lo;
+
+        0
     }
     fn addrmode_imm(&mut self) -> u8 {
-        todo!()
+        self.pc += 1;
+        self.absolute_addr = self.pc;
+        0
     }
     fn addrmode_zpx(&mut self) -> u8 {
-        todo!()
+        self.absolute_addr = self.read(self.pc) as u16 + self.x as u16;
+        self.pc += 1;
+        self.absolute_addr &= 0xFF;
+        0
     }
     fn addrmode_rel(&mut self) -> u8 {
-        todo!()
+        self.relative_addr = self.read(self.pc) as u16;
+        self.pc += 1;
+
+        if (self.relative_addr & 0x80) != 0{
+            self.relative_addr |= 0xFF00;
+        }
+        0
     }
     fn addrmode_abx(&mut self) -> u8 {
-        todo!()
+        let lo: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+        let hi: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+
+        self.absolute_addr = (hi << 8) | lo;
+        self.absolute_addr += self.x as u16;
+
+        if (self.absolute_addr & 0xFF00) != (hi << 8){
+            1
+        }else {
+            0
+        }
     }
     fn addrmode_ind(&mut self) -> u8 {
-        todo!()
+        let ptr_lo: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+        let ptr_hi: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+        
+        let ptr: u16 = (ptr_hi << 8) | ptr_lo;
+
+        /* You might want to take a look at this: https://www.nesdev.org/wiki/CPU_addressing_modes */
+        if ptr_lo == 0x00FF{ /* Simulate a page boundary hardware bug */
+            self.absolute_addr = ((self.read(ptr & 0xFF00) as u16) << 8) | self.read(ptr + 0) as u16;
+        }else { /* Normal behaviour */
+            self.absolute_addr = ((self.read(ptr + 1) as u16) << 8) | self.read(ptr + 0) as u16;
+        }
+
+        0
     }
     fn addrmode_izy(&mut self) -> u8{
-        todo!()
+        let t: u16 = self.read(self.pc) as u16;
+        self.pc += 1;
+
+        let lo: u16 = self.read(t & 0x00FF) as u16;
+        let hi: u16 = self.read((t+1) & 0x00FF) as u16;
+
+        self.absolute_addr = (hi << 8) | lo;
+        self.absolute_addr += self.y as u16;
+
+        if (self.absolute_addr & 0xFF00) != (hi << 8){
+            1
+        }else {
+            0
+        }
     }
     
     // Illegal addrmode

@@ -21,4 +21,3 @@ fn main() {
 
     (lda.opcode_function)(&mut *cpu.borrow_mut());
 }
-
