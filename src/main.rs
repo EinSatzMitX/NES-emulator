@@ -8,8 +8,8 @@ use crate::cpu::ICPU;
 use crate::cpu::Instruction;
 
 fn main() {
-    let mut bus = BUS::new();
-    let mut cpu = CPU::new();
+    let bus = BUS::new();
+    let cpu = CPU::new();
     cpu.borrow_mut().connect_bus(&Rc::new(bus));
 
     let lda = Instruction::new(
@@ -20,4 +20,6 @@ fn main() {
     );
 
     (lda.opcode_function)(&mut *cpu.borrow_mut());
+
+    
 }

@@ -97,6 +97,18 @@ pub struct CPU {
     pub lookup: Vec<Instruction>,
 }
 
+
+const STATUS_FLAG_N: u8 = 0b10000000;
+const STATUS_FLAG_V: u8 = 0b01000000;
+const STATUS_FLAG_1: u8 = 0b00100000;
+const STATUS_FLAG_B: u8 = 0b00010000;
+const STATUS_FLAG_D: u8 = 0b00001000;
+const STATUS_FLAG_I: u8 = 0b00000100;
+const STATUS_FLAG_Z: u8 = 0b00000010;
+const STATUS_FLAG_C: u8 = 0b00000001;
+
+
+
 #[allow(dead_code)]
 pub trait ICPU {
     fn new() -> Rc<RefCell<Self>>
@@ -107,6 +119,7 @@ pub trait ICPU {
     fn connect_bus(&mut self, bus: &Rc<Rc<RefCell<BUS>>>);
     fn set_flag(&mut self, status_flag: u8);
     fn clear_flag(&mut self, status_flag: u8);
+    fn get_flag(&mut self, status_flag: u8) -> u8;
 
     fn fetch(&mut self) -> u8;
     fn clock(&mut self);
@@ -314,10 +327,17 @@ impl ICPU for CPU {
     fn clear_flag(&mut self, status_flag: u8){
         self.status_flags &= !status_flag;
     }
+    fn get_flag(&mut self, status_flag: u8) -> u8{
+        if self.status_flags & status_flag > 0{
+             1
+        }else {
+            0
+        }
+    }
     fn fetch(&mut self) -> u8{
         let addrmode_fn = self.lookup[self.opcode as usize].addrmode_function.clone();
-
-        if addrmode_fn(self) != 0 {
+    
+        if addrmode_fn(self) != self.addrmode_imp() {
             self.last_fetched = self.read(self.absolute_addr);
         }
         self.last_fetched
@@ -358,33 +378,220 @@ impl ICPU for CPU {
 
     }
     fn reset(&mut self){
-        todo!()
+        self.a = 0;
+        self.x = 0;
+        self.y = 0;
+        self.sp = 0xFD;
+        self.status_flags = 0x00 | STATUS_FLAG_1;
+        self.absolute_addr = 0xFFFC;
+        let lo: u16 = self.read(self.absolute_addr + 0) as u16;
+        let hi: u16 = self.read(self.absolute_addr + 1) as u16;
+
+        self.pc = (hi << 8) | lo;
+
+        self.relative_addr = 0x0000;
+        self.absolute_addr = 0x0000;
+        self.last_fetched = 0x00;
+
+        self.cycles = 8;
     }
     fn irq(&mut self){
-        todo!()
+        if self.get_flag(STATUS_FLAG_I) == 0 {
+            self.write(0x0100 + self.sp as u16, ((self.pc >> 8) & 0x00FF).try_into().unwrap());
+            self.sp += 1;
+            self.write(0x0100 + self.sp as u16, (self.pc & 0x00FF).try_into().unwrap());
+            self.sp += 1;
+
+            self.clear_flag(STATUS_FLAG_B);
+            self.set_flag(STATUS_FLAG_1);
+            self.set_flag(STATUS_FLAG_I);
+            self.write(0x0100 + self.sp as u16, self.status_flags);
+            self.sp -= 1;
+
+            self.absolute_addr = 0xFFFE;
+
+            let lo: u16 = self.read(self.absolute_addr + 0) as u16;
+            let hi: u16 = self.read(self.absolute_addr + 1) as u16;
+
+            self.pc = (hi << 8) | lo;
+
+            self.cycles = 7;
+
+        }
     }
     fn nmi(&mut self){
-        todo!()
+        self.write(0x0100 + self.sp as u16, ((self.pc >> 8) & 0x00FF).try_into().unwrap());
+        self.sp += 1;
+        self.write(0x0100 + self.sp as u16, (self.pc & 0x00FF).try_into().unwrap());
+        self.sp += 1;
+
+        self.clear_flag(STATUS_FLAG_B);
+        self.set_flag(STATUS_FLAG_1);
+        self.set_flag(STATUS_FLAG_I);
+        self.write(0x0100 + self.sp as u16, self.status_flags);
+        self.sp -= 1;
+
+        self.absolute_addr = 0xFFFA;
+
+        let lo: u16 = self.read(self.absolute_addr + 0) as u16;
+        let hi: u16 = self.read(self.absolute_addr + 1) as u16;
+
+        self.pc = (hi << 8) | lo;
+
+        self.cycles = 8;
     }
 
     /* Opcodes */
-    fn ins_adc(&mut self) -> u8{todo!()}
-    fn ins_and(&mut self) -> u8{todo!()}
+    fn ins_adc(&mut self) -> u8{
+        self.fetch();
+        let temp: u16 = self.a as u16 + self.last_fetched as u16 + self.get_flag(STATUS_FLAG_C) as u16;
+        if temp > 255{self.set_flag(STATUS_FLAG_C);}
+        if (temp & 0x00FF) == 0{self.set_flag(STATUS_FLAG_Z);}
+        if (temp & 0x80) != 0 {self.set_flag(STATUS_FLAG_N);}
+        /* If you want to know where the fuck this comes from, maybe watch this: https://youtu.be/8XmxKPJDGU0?t=2819 */
+	      // SetFlag(V, (~((uint16_t)a ^ (uint16_t)fetched) & ((uint16_t)a ^ (uint16_t)temp)) & 0x0080);
+        if (!((self.a as u16) ^ (self.last_fetched as u16)) & ((self.a as u16) ^ (temp as u16) & 0x0080)) != 0{
+            self.set_flag(STATUS_FLAG_V);
+        }
+
+        self.a = temp as u8 & 0x00FF;
+
+        1
+    }
+    fn ins_and(&mut self) -> u8{
+        self.a = self.a & self.fetch();
+
+        if self.a == 0x00{
+            self.set_flag(STATUS_FLAG_Z);
+        }
+        if self.a & 0x80 != 0{
+            self.set_flag(STATUS_FLAG_N);
+        }
+        1
+    }
     fn ins_asl(&mut self) -> u8{todo!()}
-    fn ins_bcc(&mut self) -> u8{todo!()}
-    fn ins_bcs(&mut self) -> u8{todo!()}
-    fn ins_beq(&mut self) -> u8{todo!()}
+    fn ins_bcc(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_C) == 0{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
+    fn ins_bcs(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_C) == 1{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
+    fn ins_beq(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_Z) == 1{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
     fn ins_bit(&mut self) -> u8{todo!()}
-    fn ins_bmi(&mut self) -> u8{todo!()}
-    fn ins_bne(&mut self) -> u8{todo!()}
-    fn ins_bpl(&mut self) -> u8{todo!()}
+    fn ins_bmi(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_N) == 1{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
+    fn ins_bne(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_Z) == 0{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
+    fn ins_bpl(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_N) == 0{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
     fn ins_brk(&mut self) -> u8{todo!()}
-    fn ins_bvc(&mut self) -> u8{todo!()}
-    fn ins_bvs(&mut self) -> u8{todo!()}
-    fn ins_clc(&mut self) -> u8{todo!()}
-    fn ins_cld(&mut self) -> u8{todo!()}
-    fn ins_cli(&mut self) -> u8{todo!()}
-    fn ins_clv(&mut self) -> u8{todo!()}
+    fn ins_bvc(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_V) == 0{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
+    fn ins_bvs(&mut self) -> u8{
+        if self.get_flag(STATUS_FLAG_V) == 1{
+            self.cycles += 1;
+            self.absolute_addr = self.pc + self.relative_addr;
+
+            if (self.absolute_addr & 0xFF0) != (self.pc & 0xFF00){
+                self.cycles += 1;
+            } 
+
+            self.pc = self.absolute_addr;
+        }
+        0
+    }
+    fn ins_clc(&mut self) -> u8{
+        self.clear_flag(STATUS_FLAG_C);
+        0
+    }
+    fn ins_cld(&mut self) -> u8{
+        self.clear_flag(STATUS_FLAG_D);
+        0
+    }
+    fn ins_cli(&mut self) -> u8{
+        self.clear_flag(STATUS_FLAG_I);
+        0
+    }
+    fn ins_clv(&mut self) -> u8{
+        self.clear_flag(STATUS_FLAG_V);
+        0
+    }
     fn ins_cmp(&mut self) -> u8{todo!()}
     fn ins_cpx(&mut self) -> u8{todo!()}
     fn ins_cpy(&mut self) -> u8{todo!()}
@@ -403,15 +610,57 @@ impl ICPU for CPU {
     fn ins_lsr(&mut self) -> u8{todo!()}
     fn ins_nop(&mut self) -> u8{todo!()}
     fn ins_ora(&mut self) -> u8{todo!()}
-    fn ins_pha(&mut self) -> u8{todo!()}
+    fn ins_pha(&mut self) -> u8{
+        self.write(0x0100 + self.sp as u16, self.a);
+        self.sp -= 1;
+        0
+    }
     fn ins_php(&mut self) -> u8{todo!()}
-    fn ins_pla(&mut self) -> u8{todo!()}
+    fn ins_pla(&mut self) -> u8{
+        self.sp += 1;
+        self.a = self.read(0x0100 + self.sp as u16);
+        if self.a == 0x00 {self.set_flag(STATUS_FLAG_Z);}
+        if self.a & 0x80 != 0 {self.set_flag(STATUS_FLAG_N);}
+        0
+    }
     fn ins_plp(&mut self) -> u8{todo!()}
     fn ins_rol(&mut self) -> u8{todo!()}
     fn ins_ror(&mut self) -> u8{todo!()}
-    fn ins_rti(&mut self) -> u8{todo!()}
+    fn ins_rti(&mut self) -> u8{
+        self.sp += 1;
+        self.status_flags = self.read(0x0100 + self.sp as u16) as u8;
+        self.clear_flag(STATUS_FLAG_B);
+        self.clear_flag(STATUS_FLAG_1);
+
+        self.sp += 1;
+        self.pc = self.read(0x0100 + self.sp as u16) as u16;
+        self.sp += 1;
+        self.pc |= (self.read(0x0100 + self.sp as u16) as u16 )<< 8;
+
+        0
+    }
     fn ins_rts(&mut self) -> u8{todo!()}
-    fn ins_sbc(&mut self) -> u8{todo!()}
+    fn ins_sbc(&mut self) -> u8{
+        self.fetch();
+        let val: u16 = self.last_fetched as u16 ^ 0x00FF;
+
+        let temp: u16 = self.a as u16 + val + self.get_flag(STATUS_FLAG_C) as u16;
+    
+        /* Same as with addition */
+        if temp > 255{self.set_flag(STATUS_FLAG_C);}
+        if (temp & 0x00FF) == 0{self.set_flag(STATUS_FLAG_Z);}
+        if (temp & 0x80) != 0 {self.set_flag(STATUS_FLAG_N);}
+        /* If you want to know where the fuck this comes from, maybe watch this: https://youtu.be/8XmxKPJDGU0?t=2819 */
+	      // SetFlag(V, (~((uint16_t)a ^ (uint16_t)fetched) & ((uint16_t)a ^ (uint16_t)temp)) & 0x0080);
+        if (!((self.a as u16) ^ (self.last_fetched as u16)) & ((self.a as u16) ^ (temp as u16) & 0x0080)) != 0{
+            self.set_flag(STATUS_FLAG_V);
+        }
+
+        self.a = temp as u8 & 0x00FF;
+
+        1
+
+    }
     fn ins_sec(&mut self) -> u8{todo!()}
     fn ins_sed(&mut self) -> u8{todo!()}
     fn ins_sei(&mut self) -> u8{todo!()}
