@@ -86,7 +86,11 @@ pub struct CPU {
     +--------- Negative
     */
 
-    pub bus: Weak<Rc<RefCell<BUS>>>,
+    //pub bus: Weak<Rc<RefCell<BUS>>>,
+
+    /* New pointer system */
+    pub bus: Weak<RefCell<BUS>>,
+    
 
     /* Some helper members */
     pub last_fetched: u8,
@@ -306,9 +310,10 @@ impl ICPU for CPU {
 
     fn read(&self, addr: u16) -> u8 {
         if let Some(bus) = self.bus.upgrade() {
-            return (**bus).borrow().read(addr, true);
+            let val = (*bus).borrow().read(addr, true);
+            return val;
         }
-        0 // Default return if bus is not available
+        return 0; // Default return if bus is not available
     }
     fn write(&mut self, addr: u16, data: u8) {
         if let Some(bus) = self.bus.upgrade() {
@@ -346,14 +351,16 @@ impl ICPU for CPU {
         /* I just want to mention how incredibly grateful I am that AI exists, I have spent over an
         * hour on this and ChatGPT just cooked it up in 5 mins */
         if self.cycles == 0 {
+            println!("Current pc: {}", self.pc);
             // Fetch the opcode from memory
+            let instruction = &self.lookup[self.opcode as usize];
             self.opcode = self.read(self.pc);
             self.pc += 1;
 
             // Use a new block to limit the scope of the immutable borrow.
             let (addrmode_fn, opcode_fn, cycles) = {
                 // Borrow the instruction immutably.
-                let instruction = &self.lookup[self.opcode as usize];
+                //let instruction = &self.lookup[self.opcode as usize];
                 // Extract both functions via cloning the smart pointer, and save cycles.
                 (
                     Rc::clone(&instruction.addrmode_function),
@@ -374,7 +381,7 @@ impl ICPU for CPU {
             self.cycles += (additional_cycle1 as u8) & (additional_cycle2 as u8);
         }
 
-        self.cycles -= 1;
+        self.cycles = self.cycles.wrapping_sub(1);
 
     }
     fn reset(&mut self){

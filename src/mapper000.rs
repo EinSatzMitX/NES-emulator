@@ -19,9 +19,40 @@ impl IMapper for Mapper000{
     }
 
 
-    fn cpu_map_read(addr: u16, mapped_addr: u32) -> bool{todo!()}
-    fn cpu_map_write(addr: u16, mapped_addr: u32) -> bool{todo!()}
-    fn ppu_map_read(addr: u16, mapped_addr: u32) -> bool{todo!()}
-    fn ppu_map_write(addr: u16, mapped_addr: u32) -> bool{todo!()}
+    fn cpu_map_read(&mut self, addr: u16, mut mapped_addr: u32) -> bool{
+        if addr >= 0x8000 {
+            mapped_addr = (addr & if self.prg_banks as u8 > 1 { 0x7FFF } else { 0x3FFF }) as u32;
+            return true;
+        }
+
+        return false;
+    }
+    fn cpu_map_write(&mut self, addr: u16, mut mapped_addr: u32) -> bool{
+        
+        if addr >= 0x8000{
+            mapped_addr = (addr & if self.prg_banks as u8 > 1 { 0x7FFF } else { 0x3FFF }) as u32;
+            return true;
+        }
+
+        return false;
+    }
+    fn ppu_map_read(&mut self, addr: u16, mut mapped_addr: u32) -> bool{
+            
+        if addr >= 0x8000 && addr <= 0x1FFF{
+            mapped_addr = addr as u32;
+            return true;
+        }
+
+        return false;
+    }
+    fn ppu_map_write(&mut self, addr: u16, mapped_addr: u32) -> bool{
+        
+        // if addr >= 0x8000 && addr <= 0x1FFF{
+        //
+        //     return true;
+        // }
+
+        return false;
+    }
 
 }

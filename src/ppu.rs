@@ -3,10 +3,20 @@ use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::task::Wake;
 
-use crate::cartridge::ICartridge;
+use crate::ICartridge;
+use crate::bus::BUS;
 
 pub struct PPU{
-    cartridge: Weak<Rc<RefCell<dyn ICartridge>>>,
+    //cartridge: Weak<Rc<RefCell<dyn ICartridge>>>,
+    
+    /* New pointer system */
+    pub bus: Weak<RefCell<BUS>>,
+    pub cartridge: Weak<Rc<RefCell<dyn ICartridge>>>, 
+
+    frame_complete: bool,
+
+    scanline: i16,
+    cycle: i16,
 
     /* 2KB of VRAM */
     tbl_name: [[u8; 1024]; 2],
@@ -38,7 +48,11 @@ impl IPPU for PPU{
 
     fn new() -> Rc<RefCell<Self>>{
                 Rc::new(RefCell::new(PPU {
+                    bus: Weak::new(),
                     cartridge: Weak::new(), 
+                    frame_complete: false,
+                    scanline: 0,
+                    cycle: 0,
                     tbl_name: [[0u8; 1024]; 2],
                     palette: [0u8; 32],
         }))
@@ -83,7 +97,7 @@ impl IPPU for PPU{
 
         let cart = self.cartridge.upgrade().unwrap();
         
-        if (**cart).borrow_mut().ppu_read(addr, read_only){
+        if (*cart).borrow_mut().ppu_read(addr, data){
 
         }
 
@@ -94,9 +108,9 @@ impl IPPU for PPU{
 
         let cart = self.cartridge.upgrade().unwrap();
         
-        if (**cart).borrow_mut().ppu_write(addr, data){
-
-        }
+        //if (**cart).borrow_mut().ppu_write(addr, data){
+        //
+        //}
 
     }
 
@@ -104,7 +118,19 @@ impl IPPU for PPU{
         self.cartridge = Rc::downgrade(cartridge);
     }
     fn clock(&mut self){
-        todo!()
+
+        /* DrawPixel(cycle -1, scanline); */
+
+        self.cycle += 1;
+
+        if self.cycle >= 341{
+            self.cycle = 0;
+            self.scanline += 1;
+            if self.scanline >= 261 {
+                self.scanline = -1;
+                self.frame_complete = true;
+            }
+        }
     }
 
 }

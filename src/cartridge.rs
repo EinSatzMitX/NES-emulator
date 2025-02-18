@@ -1,8 +1,10 @@
 
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
-use std::rc::Rc;
+use std::io::{BufReader, ErrorKind, Read, Seek, SeekFrom};
+use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+
+use crate::mapper::IMapper;
 
 #[repr(C)]
 #[derive(Debug, Default)]
@@ -26,7 +28,7 @@ enum Mirror {
     OnescreenHi,
 }
 
-struct Cartridge{
+pub struct Cartridge{
     pub prg_memory: Vec<u8>,
     pub chr_memory: Vec<u8>,
 
@@ -38,6 +40,8 @@ struct Cartridge{
 
     pub mirror: Mirror,
 
+    pub mapper: Weak<Rc<RefCell<dyn IMapper>>>,
+
 }
 
 pub trait ICartridge{
@@ -47,11 +51,11 @@ pub trait ICartridge{
         Self: Sized;
 
     /* Functions for accessing the CPU Bus */
-    fn cpu_read(&mut self, addr: u16, read_only: bool) -> bool;
+    fn cpu_read(&mut self, addr: u16, data: u8) -> bool;
     fn cpu_write(&mut self, addr: u16, data: u8) -> bool;
 
     /* Functions for accessing the PPU Bus */
-    fn ppu_read(&mut self, addr: u16, read_only: bool) -> bool;
+    fn ppu_read(&mut self, addr: u16, data: u8) -> bool;
     fn ppu_write(&mut self, addr: u16, data: u8) -> bool;
 
 }
@@ -71,10 +75,19 @@ impl ICartridge for Cartridge{
             image_valid: false,
 
             mirror: Mirror::Horizontal,
+            mapper: Weak::new(),
         };
 
         let mut b_image_valid = false;
-        let file = File::open(file_name).unwrap();
+        let file = File::open(file_name).unwrap_or_else(|e| {
+            if e.kind() == ErrorKind::NotFound {
+                eprintln!("Error: {} was not found", file_name);
+            } else {
+                eprintln!("Error opening {}: {}", file_name, e);
+            }
+            panic!("Could not open the file");
+        });
+
         let mut reader = BufReader::new(file);
 
         let mut header = Header::default();
@@ -86,7 +99,7 @@ impl ICartridge for Cartridge{
 
         reader.read_exact(header_buf).unwrap();
 
-        // If a "trainer" exists (bit 2 of mapper1 is set), skip 512 bytes.
+        /* If a "trainer" exists (bit 2 of mapper1 is set), skip 512 bytes. */
         if header.mapper1 & 0x04 != 0 {
             reader.seek(SeekFrom::Current(512)).unwrap();
         }
@@ -134,10 +147,46 @@ impl ICartridge for Cartridge{
         Rc::new(RefCell::new(cart))
     }
 
-    fn cpu_read(&mut self, addr: u16, read_only: bool) -> bool{todo!()}
-    fn cpu_write(&mut self, addr: u16, data: u8) -> bool {todo!()}
+    fn cpu_read(&mut self, addr: u16, mut data: u8) -> bool{
+        let mut mapped_addr: u32 = 0;
+        if let Some(mapper) = self.mapper.upgrade(){
+            if (**mapper).borrow_mut().cpu_map_read(addr, mapped_addr){
+                data = self.prg_memory[mapped_addr as usize];
+                return true;
+            }
+        }
+        return false;
+    }
+    fn cpu_write(&mut self, addr: u16, mut data: u8) -> bool {
+        let mut mapped_addr: u32 = 0;
+        if let Some(mapper) = self.mapper.upgrade(){
+            if (**mapper).borrow_mut().cpu_map_write(addr, mapped_addr){
+                data = self.prg_memory[mapped_addr as usize];
+                return true;
+            }
+        }
+        return false;
+    }
 
-    fn ppu_read(&mut self, addr: u16, read_only: bool) -> bool{todo!()}
-    fn ppu_write(&mut self, addr: u16, data: u8) -> bool {todo!()}
+    fn ppu_read(&mut self, addr: u16, mut data: u8) -> bool{
+        let mut mapped_addr: u32 = 0;
+        if let Some(mapper) = self.mapper.upgrade(){
+            if (**mapper).borrow_mut().ppu_map_read(addr, mapped_addr){
+                data = self.chr_memory[mapped_addr as usize];
+                return true;
+            }
+        }
+        return false;
+    }
+    fn ppu_write(&mut self, addr: u16, mut data: u8) -> bool {
+        let mut mapped_addr: u32 = 0;
+        if let Some(mapper) = self.mapper.upgrade(){
+            if (**mapper).borrow_mut().cpu_map_read(addr, mapped_addr){
+                data = self.chr_memory[mapped_addr as usize];
+                return true;
+            }
+        }
+        return false;
+    }
 
 }
