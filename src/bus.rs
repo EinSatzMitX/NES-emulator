@@ -63,50 +63,26 @@ impl BUS {
     }
 
     /* This is actually cpu_read, I was jsut too lazy to rename it */
-    //pub fn read(&self, addr: u16, readonly: bool) -> u8 {
-    //    let mut data: u8 = 0x00;
-    //
-    //    if let Some(cartridge) = self.cartridge.as_ref(){
-    //        if (**cartridge).borrow_mut().cpu_read(addr, data) == false{
-    //            // !!! TODO: look if this should actually return 0
-    //            return 0;
-    //        }
-    //    }
-    //
-    //    if addr <= 0x1FFF{
-    //        data = self.cpu_ram[(addr as usize) & 0x07FF];
-    //    } else if addr >= 0x2000 && addr <= 0x3FFF{
-    //        if let Some(ppu) = self.ppu.as_ref(){
-    //            data = (**ppu).borrow_mut().cpu_read(addr & 0x000f, readonly);
-    //        }
-    //    }
-    //    return data;
-    //}
-pub fn read(&self, addr: u16, readonly: bool) -> u8 {
-    let mut data: u8 = 0x00;
-    
-    // Borrow the cartridge mutably in its own block.
-    if let Some(cartridge) = self.cartridge.as_ref() {
-        {
-            let mut cart = (**cartridge).borrow_mut();
-            if !cart.cpu_read(addr, data) {
-                // TODO: check if this should return 0
+    pub fn read(&self, addr: u16, readonly: bool) -> u8 {
+        let mut data: u8 = 0x00;
+        
+        if let Some(cartridge) = self.cartridge.as_ref(){
+            if (**cartridge).borrow_mut().cpu_read(addr, data) == false{
+                // !!! TODO: look if this should actually return 0
                 return 0;
             }
-        } // <-- mutable borrow on cartridge is dropped here.
+        }
+
+        if addr <= 0x1FFF{
+            data = self.cpu_ram[(addr as usize) & 0x07FF];
+        } else if addr >= 0x2000 && addr <= 0x3FFF{
+            if let Some(ppu) = self.ppu.as_ref(){
+                data = (**ppu).borrow_mut().cpu_read(addr & 0x000f, readonly);
+            }
+        }
+        return data;
     }
 
-    if addr <= 0x1FFF {
-        data = self.cpu_ram[(addr as usize) & 0x07FF];
-    } else if addr >= 0x2000 && addr <= 0x3FFF {
-        if let Some(ppu) = self.ppu.as_ref() {
-            let mut ppu_ref = (**ppu).borrow_mut();
-            data = ppu_ref.cpu_read(addr & 0x000F, readonly);
-            // mutable borrow on ppu is dropped at the end of this block.
-        }
-    }
-    data
-}
     pub fn insert_cartridge(&mut self, cartridge: &Rc<Rc<RefCell<dyn ICartridge>>>){
         if let Some(ppu) = self.ppu.as_ref() {
             (**ppu).borrow_mut().connect_cartridge(cartridge);
