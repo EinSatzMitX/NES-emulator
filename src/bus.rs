@@ -94,47 +94,39 @@ impl BUS {
             self.n_sys_clockcounter = 0;
         }
     }
-    pub fn clock(&mut self){
-
+    pub fn clock(&mut self) {
         println!("running bus.clock()!");
-    
-    // Clone the CPU and PPU pointers from the bus.
-    let cpu_clone = self.cpu.clone();
-    let ppu_clone = self.ppu.clone();
-    
-    // Update clock counter while still inside the mutable borrow if needed.
-        self.n_sys_clockcounter += 1;
-    let counter = self.n_sys_clockcounter;
-        self.trigger_clock(cpu_clone, ppu_clone, counter.into()); 
 
-    //// Drop the mutable borrow on self by ending this block.
-    //// (We are no longer accessing self after this point.)
-    //let _ = &mut *self;
-    //
-    //// Now call the clock methods on CPU and PPU without holding the bus borrow.
-    //if let Some(ppu) = ppu_clone {
-    //    (*ppu).borrow_mut().clock();
-    //    println!("ppu clocked!");
-    //}
-    //
-    //if self.n_sys_clockcounter % 3 == 0 {
-    //    if let Some(cpu) = cpu_clone {
-    //        (*cpu).borrow_mut().clock();
-    //        println!("cpu clocked!");
-    //    }
-    //}
+        // Create clones and update counter in an inner block.
+        let (cpu_clone, ppu_clone, counter) = {
+            // 'self' is mutably borrowed here
+            let cpu_clone = self.cpu.clone();
+            let ppu_clone = self.ppu.clone();
+            self.n_sys_clockcounter += 1;
+            (cpu_clone, ppu_clone, self.n_sys_clockcounter)
+        }; // <- End of inner block; the mutable borrow on self is dropped here.
+
+        // Now we call trigger_clock without holding on to the previous borrow.
+        self.trigger_clock(cpu_clone, ppu_clone, counter.into());
     }
+
     pub fn trigger_clock(&self, cpu_clone: Option<Rc<RefCell<dyn ICPU>>>, ppu_clone: Option<Rc<RefCell<dyn IPPU>>>, clock_counter: u64,){
         if let Some(ppu) = ppu_clone{
             (*ppu).borrow_mut().clock();
             println!("ppu clocked!");
         }
         if clock_counter % 3 == 0 {
-            if let Some(cpu) = cpu_clone {
-                (*cpu).borrow_mut().clock();
-                println!("cpu clocked!");
-            }
+            // if let Some(cpu) = cpu_clone {
+            //     (*cpu).borrow_mut().clock();
+            //     println!("cpu clocked!");
+            // }
+            self.trigger_clock_cpu(cpu_clone);
         }
     }
-
+    pub fn trigger_clock_cpu(&self, cpu_clone: Option<Rc<RefCell<dyn ICPU>>>){
+        if let Some(cpu) = cpu_clone {
+            (*cpu).borrow_mut().clock();
+            println!("cpu clocked!");
+        }
+    }
 }

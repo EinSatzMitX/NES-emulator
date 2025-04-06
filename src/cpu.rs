@@ -355,12 +355,13 @@ impl ICPU for CPU {
             // Fetch the opcode from memory
             let instruction = &self.lookup[self.opcode as usize];
             self.opcode = self.read(self.pc);
+            // self.opcode = r_val;
             self.pc += 1;
 
             // Use a new block to limit the scope of the immutable borrow.
             let (addrmode_fn, opcode_fn, cycles) = {
                 // Borrow the instruction immutably.
-                //let instruction = &self.lookup[self.opcode as usize];
+                // let instruction = &self.lookup[self.opcode as usize];
                 // Extract both functions via cloning the smart pointer, and save cycles.
                 (
                     Rc::clone(&instruction.addrmode_function),
@@ -556,7 +557,12 @@ impl ICPU for CPU {
         }
         0
     }
-    fn ins_brk(&mut self) -> u8{todo!()}
+    fn ins_brk(&mut self) -> u8{
+        // todo!()
+
+        println!("Current instruction: BRK (Not implemented yet!)");
+        0
+    }
     fn ins_bvc(&mut self) -> u8{
         if self.get_flag(STATUS_FLAG_V) == 0{
             self.cycles += 1;
